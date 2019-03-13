@@ -4,7 +4,7 @@ import numpy as np
 import parameters
 from eccodes import *
 
-for i in xrange(2001, 2015):
+for i in xrange(2000, 2015):
     print("Start year: " + str(i))
 
     PATHI = parameters.GRIB_DATA_DIRECTORY  # '$DIR/initdata'
@@ -24,22 +24,16 @@ for i in xrange(2001, 2015):
     print("Loading finished")
 
     Nheight = 7  # 7 hPa levels
-    Nparamens = 6  #geopotential, u, v wind direction, fraction of cloud cover, relative humidity, temperature, mean T
+    Nparamens = 6  #geopotential, u, v wind direction, fraction of cloud cover, relative humidity, temperature
     Nlatitude = 41
     Nlongitude = 141
     Nhours = x / (Nparamens * Nheight * 3)
 
-    npx0 = np.empty([Nhours, Nparamens, Nheight, Nlatitude, Nlongitude], dtype=np.float32)
-    npx3 = np.empty([Nhours, Nparamens, Nheight, Nlatitude, Nlongitude], dtype=np.float32)
-    npx6 = np.empty([Nhours, Nparamens, Nheight, Nlatitude, Nlongitude], dtype=np.float32)
-    npy3 = np.empty([Nhours, Nparamens, Nheight, Nlatitude, Nlongitude], dtype=np.float32)
-    npy6 = np.empty([Nhours, Nparamens, Nheight, Nlatitude, Nlongitude], dtype=np.float32)
-
-    npx0[:] = np.nan
-    npx3[:] = np.nan
-    npx6[:] = np.nan
-    npy3[:] = np.nan
-    npy6[:] = np.nan
+    npx0 = np.full([Nhours, Nparamens, Nheight, Nlatitude, Nlongitude], np.nan, dtype=np.float32)
+    npx3 = np.full([Nhours, Nparamens, Nheight, Nlatitude, Nlongitude], np.nan, dtype=np.float32)
+    npx6 = np.full([Nhours, Nparamens, Nheight, Nlatitude, Nlongitude], np.nan, dtype=np.float32)
+    npy3 = np.full([Nhours, Nparamens, Nheight, Nlatitude, Nlongitude], np.nan, dtype=np.float32)
+    npy6 = np.full([Nhours, Nparamens, Nheight, Nlatitude, Nlongitude], np.nan, dtype=np.float32)
 
     print("Start extracting x0, x3, x6")
     for ise in xrange(0, x):
