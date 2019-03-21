@@ -31,7 +31,7 @@ def one2oneLayer(input, name):
 	
 	
 	
-class CNN(object):
+class One2One(object):
 	def __init__(self):
 		self.data = None
 		self.labels = None

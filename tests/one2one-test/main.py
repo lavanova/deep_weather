@@ -18,7 +18,7 @@ def parse_one_string_record(string_record):
 
 	
 def trainForOneYear(i, sess, model):
-	print("traning for year "+str(j+2000))
+	print("traning for year "+str(i+2000))
 	reader = tf.TFRecordReader()
 	tfrecords_filename = cfg.tf_filepath+"/tf_"+str(2000+i)+"_small_grid"
 	record_iterator = tf.python_io.tf_record_iterator(path=tfrecords_filename)
