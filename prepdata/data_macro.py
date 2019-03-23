@@ -1,4 +1,8 @@
-ROOT_DIRECTORY = "/media/chengyuan/2CC869A3C8696BD0/deep_weather"
+import sys
+sys.path.append('../')
+import global_macros
+
+ROOT_DIRECTORY = global_macros.ROOT_DIRECTORY
 DATA_DIRECTORY = ROOT_DIRECTORY + "/data"
 GRIB_DATA_DIRECTORY = DATA_DIRECTORY + "/initdata"
 NPY_DATA_DIRECTORY = DATA_DIRECTORY + "/npydata"
