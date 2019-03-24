@@ -5,16 +5,12 @@ import numpy as np
 import os.path as osp
 from utils import variable_summaries
 
-#import deep500 as d5
-#from deep500.frameworks import tensorflow as d5tf
-#from deep500.frameworks.tensorflow.tf_graph_executor import TensorflowNativeGraphExecutor as tfge
-
 seed = random.randint(1, 1000)
 
 X_SHAPE = [30, 30, 42]
 
 class One2One(object):
-    def __init__(self, sess, logger, FLAGS):
+    def __init__(self, sess, FLAGS):
         self.data = None
         self.labels = None
         self.x = None
@@ -28,7 +24,7 @@ class One2One(object):
         self.latest_model = None
         self.saver = None
         self.sess = sess
-        self.logger = logger
+        self.logger = None
         self.FLAGS = FLAGS
         self._buildNet()
 
@@ -37,18 +33,20 @@ class One2One(object):
         filter = tf.get_variable(name = name + 'weights', regularizer = tf.contrib.layers.l2_regularizer(scale=1.0) ,shape = shape, initializer = init, trainable = True)
         return filter
 
-    def one2oneLayer(self, input, name):
-        shape = X_SHAPE
-        weights = tf.Variable(tf.ones(shape), name = 'weights')
-        variable_summaries(weights)
-        bias = tf.Variable(tf.zeros(shape), name = 'bias')
-        variable_summaries(bias)
+    def one2oneLayer(self, input, namespace):
+        with tf.variable_scope(namespace):
+            shape = X_SHAPE
+            weights = tf.Variable(tf.ones(shape), name = 'weights')
+            variable_summaries(weights)
+            assert weights.graph is tf.get_default_graph()
+            bias = tf.Variable(tf.zeros(shape), name = 'bias')
+            variable_summaries(bias)
         return tf.multiply(input, weights) + bias
 
     def _buildNet(self):
         with tf.variable_scope('one2one'):
-            self.y = tf.placeholder(tf.float32, shape=(None, 30, 30, 42))
-            self.x = tf.placeholder(tf.float32, shape=(None, 30, 30, 42))
+            self.y = tf.placeholder(tf.float32, shape=(None, 30, 30, 42), name='Y')
+            self.x = tf.placeholder(tf.float32, shape=(None, 30, 30, 42), name='X')
             l1 = self.one2oneLayer(self.x, "l1")
             self.out = l1
             self.loss = tf.losses.mean_squared_error(self.y, self.out)
@@ -57,7 +55,7 @@ class One2One(object):
             self.train_op = tf.train.AdamOptimizer(learning_rate = self.FLAGS.lr).minimize(self.loss, global_step=self.global_step)
             self.summary_op = tf.summary.merge_all()
         self.saver = tf.train.Saver(max_to_keep=30, keep_checkpoint_every_n_hours=6)
-
+        self.logger = tf.summary.FileWriter( osp.join(self.FLAGS.logdir, self.FLAGS.exp), self.sess.graph)
 
     def _get_loss(self, iter_X, iter_Y):
         X, Y = self.sess.run([iter_X, iter_Y])

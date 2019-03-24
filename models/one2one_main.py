@@ -71,9 +71,7 @@ def main():
         sess.run(iter_val.initializer)
         sess.run(iter_test.initializer)
 
-        train_writer = tf.summary.FileWriter( osp.join(FLAGS.logdir, FLAGS.exp), sess.graph)
-
-        model = One2One(sess=sess, logger=train_writer, FLAGS=FLAGS)
+        model = One2One(sess=sess, FLAGS=FLAGS)
         model.run(iter_data=iter_train, iter_val=iter_val)
         model.run(iter_data=iter_test, train=False, load_path=True)
 
