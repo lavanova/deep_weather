@@ -1,26 +1,30 @@
 import sys
 sys.path.append('../')
+import os.path as osp
 import global_macros
 from config import Config as cfg
 import tensorflow as tf
 import numpy as np
 from one2one import One2One
 from tensorflow.python.platform import flags
+from utils import TF2FLRD
 
 FLAGS = flags.FLAGS
 
 # Dataset Options
-flags.DEFINE_integer('batch_size', 30, 'Size of inputs')
+flags.DEFINE_integer('batch_size', 64, 'Size of a batch')
 #flags.DEFINE_bool('single', False, 'whether to debug by training on a single image')
 # flags.DEFINE_integer('data_workers', 4,
 #     'Number of different data workers to load data in parallel')
 
 # General Experiment Settings
-flags.DEFINE_string('logdir', global_macros.CACHE_ROOT + "/one2one",
+flags.DEFINE_string('ckptdir', global_macros.CKPT_ROOT + "/one2one",
+    'location where models will be stored')
+flags.DEFINE_string('logdir', global_macros.LOGGER_ROOT + "/one2one",
     'location where log of experiments will be stored')
-flags.DEFINE_string('exp', 'default', 'name of experiments')
+flags.DEFINE_string('exp', 'test', 'name of experiments')
 flags.DEFINE_integer('log_interval', 10, 'log outputs every so many batches')
-flags.DEFINE_integer('save_interval', 1000,'save outputs every so many batches')
+flags.DEFINE_integer('save_interval', 200,'save outputs every so many batches')
 flags.DEFINE_integer('test_interval', 1000,'evaluate outputs every so many batches')
 flags.DEFINE_integer('resume_iter', -1, 'iteration to resume training from')
 flags.DEFINE_bool('train', True, 'whether to train or test')
@@ -48,34 +52,30 @@ def parse(example):
     return data['X'], data['Y']
 
 
-def TF2FLRD(filenames, batchsize=30, buffersize=730, oneshot=False):
-    train_dataset = tf.data.TFRecordDataset(filenames=filenames)
-    train_dataset = train_dataset.map(parse)
-    train_dataset = train_dataset.shuffle(buffersize)
-    train_dataset = train_dataset.batch(batchsize)
-    train_dataset = train_dataset.repeat()
-    if oneshot:
-        return train_dataset.make_one_shot_iterator()
-    else:
-        return train_dataset.make_initializable_iterator()
-
-
 def main():
     file_comment = "_small_grid"
-    train_years = [2000, 2001]
-    test_years = [2011]
-    train_files = [ (global_macros.TF_DATA_DIRECTORY + "/tf_" + str(i) + file_comment) for i in train_years]
-    test_files = [ (global_macros.TF_DATA_DIRECTORY + "/tf_" + str(i) + file_comment) for i in test_years]
-    train_iter = TF2FLRD(train_files, batchsize=FLAGS.batch_size, buffersize=730)
-    test_iter = TF2FLRD(test_files, batchsize=730, buffersize=730)
+    years_train = [2000, 2001, 2002]
+    years_val = [2010]
+    years_test = [2011]
+
+    ipaths_train = [ (global_macros.TF_DATA_DIRECTORY + "/tf_" + str(i) + file_comment) for i in years_train]
+    ipaths_val = [ (global_macros.TF_DATA_DIRECTORY + "/tf_" + str(i) + file_comment) for i in years_val]
+    ipaths_test = [ (global_macros.TF_DATA_DIRECTORY + "/tf_" + str(i) + file_comment) for i in years_test]
+
+    iter_train = TF2FLRD(ipaths_train, batchsize=FLAGS.batch_size, buffersize=730, parse=parse)
+    iter_val = TF2FLRD(ipaths_val, batchsize=730, buffersize=730, parse=parse)
+    iter_test = TF2FLRD(ipaths_test, batchsize=730, buffersize=730, parse=parse)
 
     with tf.Session() as sess:
-        sess.run(train_iter.initializer)
-        sess.run(test_iter.initializer)
-        
-        model = One2One(saver=None, sess=sess, logger=None, dataloader=train_iter, FLAGS=FLAGS)
-        model.run()
-        model.run(dataloader=test_iter, train=False)
+        sess.run(iter_train.initializer)
+        sess.run(iter_val.initializer)
+        sess.run(iter_test.initializer)
+
+        train_writer = tf.summary.FileWriter( osp.join(FLAGS.logdir, FLAGS.exp), sess.graph)
+
+        model = One2One(sess=sess, logger=train_writer, FLAGS=FLAGS)
+        model.run(iter_data=iter_train, iter_val=iter_val)
+        model.run(iter_data=iter_test, train=False, load_path=True)
 
 if __name__ == "__main__":
     main()
