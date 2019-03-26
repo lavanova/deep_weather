@@ -18,7 +18,7 @@ flags.DEFINE_integer('batch_size', 64, 'Size of a batch')
 # Base Model class Mandatory:
 flags.DEFINE_bool('train', True, 'whether to train or test')
 flags.DEFINE_integer('epoch_num', 400, 'Number of Epochs to train on')
-flags.DEFINE_integer('resume_iter', 400,
+flags.DEFINE_integer('resume_iter', -1,
     'iteration to resume training from, -1 means not resuming')
 flags.DEFINE_string('ckptdir', global_macros.CKPT_ROOT + "/one2one",
     'location where models will be stored')
@@ -71,9 +71,9 @@ def main():
             iter_train = TF2FLRD(ipaths_train, batchsize=FLAGS.batch_size, buffersize=730, parse=parse)
             iter_val = TF2FLRD(ipaths_val, batchsize=730, buffersize=730, parse=parse)
             iter_test = TF2FLRD(ipaths_test, batchsize=730, buffersize=730, parse=parse)
-            sess.run(iter_train.initializer)
-            sess.run(iter_val.initializer)
-            sess.run(iter_test.initializer)
+        sess.run(iter_train.initializer)
+        sess.run(iter_val.initializer)
+        sess.run(iter_test.initializer)
 
         model = One2One(sess=sess, FLAGS=FLAGS)
         model.run(iter_data=iter_train, iter_val=iter_val)
