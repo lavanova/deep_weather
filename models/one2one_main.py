@@ -7,17 +7,19 @@ import tensorflow as tf
 import numpy as np
 from one2one import One2One
 from tensorflow.python.platform import flags
-from utils import TF2FLRD
+from utils import TF2FLRD, print_flag
 
 FLAGS = flags.FLAGS
 
-# Dataset Options
+# Dataset Options:
 flags.DEFINE_integer('batch_size', 64, 'Size of a batch')
 #flags.DEFINE_bool('single', False, 'whether to debug by training on a single image')
-# flags.DEFINE_integer('data_workers', 4,
-#     'Number of different data workers to load data in parallel')
 
-# General Experiment Settings
+# Base Model class Mandatory:
+flags.DEFINE_bool('train', True, 'whether to train or test')
+flags.DEFINE_integer('epoch_num', 400, 'Number of Epochs to train on')
+flags.DEFINE_integer('resume_iter', 400,
+    'iteration to resume training from, -1 means not resuming')
 flags.DEFINE_string('ckptdir', global_macros.CKPT_ROOT + "/one2one",
     'location where models will be stored')
 flags.DEFINE_string('logdir', global_macros.LOGGER_ROOT + "/one2one",
@@ -25,17 +27,18 @@ flags.DEFINE_string('logdir', global_macros.LOGGER_ROOT + "/one2one",
 flags.DEFINE_string('exp', 'test', 'name of experiments')
 flags.DEFINE_integer('log_interval', 10, 'log outputs every so many batches')
 flags.DEFINE_integer('save_interval', 200,'save outputs every so many batches')
-flags.DEFINE_integer('test_interval', 1000,'evaluate outputs every so many batches')
-flags.DEFINE_integer('resume_iter', -1, 'iteration to resume training from')
-flags.DEFINE_bool('train', True, 'whether to train or test')
-flags.DEFINE_integer('epoch_num', 500, 'Number of Epochs to train on')
-flags.DEFINE_float('lr', 1e-3, 'Learning for training')
-# flags.DEFINE_integer('num_gpus', 1, 'number of gpus to train on')
+## Saver options:
+flags.DEFINE_integer('max_to_keep', 30, 'maximum number of models to keep')
+flags.DEFINE_integer('keep_checkpoint_every_n_hours', 3, 'check point intervals')
 
-# EBM Specific Experiments Settings
-# flags.DEFINE_float('ml_coeff', 1.0, 'Maximum Likelihood Coefficients')
-# flags.DEFINE_float('l2_coeff', 1.0, 'L2 Penalty training')
-# flags.DEFINE_bool('cclass', False, 'Whether to conditional training in models')
+# Model specific:
+flags.DEFINE_float('lr', 1e-3, 'Learning for training')
+flags.DEFINE_integer('test_interval', 1000,'evaluate outputs every so many batches')
+
+# Execution:
+flags.DEFINE_integer('num_gpus', 1, 'number of gpus to train on')
+flags.DEFINE_integer('data_workers', 4,
+    'Number of different data workers to load data in parallel')
 
 
 def parse(example):
@@ -53,6 +56,7 @@ def parse(example):
 
 
 def main():
+    #print_flag(FLAGS)
     file_comment = "_small_grid"
     years_train = [2000, 2001, 2002]
     years_val = [2010]
@@ -62,18 +66,18 @@ def main():
     ipaths_val = [ (global_macros.TF_DATA_DIRECTORY + "/tf_" + str(i) + file_comment) for i in years_val]
     ipaths_test = [ (global_macros.TF_DATA_DIRECTORY + "/tf_" + str(i) + file_comment) for i in years_test]
 
-    iter_train = TF2FLRD(ipaths_train, batchsize=FLAGS.batch_size, buffersize=730, parse=parse)
-    iter_val = TF2FLRD(ipaths_val, batchsize=730, buffersize=730, parse=parse)
-    iter_test = TF2FLRD(ipaths_test, batchsize=730, buffersize=730, parse=parse)
-
     with tf.Session() as sess:
-        sess.run(iter_train.initializer)
-        sess.run(iter_val.initializer)
-        sess.run(iter_test.initializer)
+        with tf.name_scope('data'):
+            iter_train = TF2FLRD(ipaths_train, batchsize=FLAGS.batch_size, buffersize=730, parse=parse)
+            iter_val = TF2FLRD(ipaths_val, batchsize=730, buffersize=730, parse=parse)
+            iter_test = TF2FLRD(ipaths_test, batchsize=730, buffersize=730, parse=parse)
+            sess.run(iter_train.initializer)
+            sess.run(iter_val.initializer)
+            sess.run(iter_test.initializer)
 
         model = One2One(sess=sess, FLAGS=FLAGS)
         model.run(iter_data=iter_train, iter_val=iter_val)
-        model.run(iter_data=iter_test, train=False, load_path=True)
+        model.run(iter_data=iter_test, train=False, load=True)
 
 if __name__ == "__main__":
     main()

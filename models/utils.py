@@ -25,39 +25,63 @@ def TF2FLRD(filenames, batchsize=30, buffersize=730, parse=_parse_, oneshot=Fals
     else:
         return train_dataset.make_initializable_iterator()
 
-def variable_summaries(var, name=''):
-    """Attach a lot of summaries to a Tensor (for TensorBoard visualization)."""
-    with tf.name_scope('summaries'):
-        with tf.name_scope(name):
-            mean = tf.reduce_mean(var)
+'''
+Add summaries, by default only adds histogram,
+if verbose=1, add mean, stddev, min, max
+The default namespace is summary
+'''
+def variable_summaries(var, name, verbose=0):
+    with tf.name_scope(name):
+        mean = tf.reduce_mean(var)
+        if verbose:
             tf.summary.scalar('mean', mean)
             with tf.name_scope('stddev'):
                 stddev = tf.sqrt(tf.reduce_mean(tf.square(var - mean)))
             tf.summary.scalar('stddev', stddev)
             tf.summary.scalar('max', tf.reduce_max(var))
             tf.summary.scalar('min', tf.reduce_min(var))
-            tf.summary.histogram('histogram', var)
+        tf.summary.histogram('histogram', var)
+
+
+def print_flag(FLAGS):
+    for key in FLAGS.flag_values_dict():
+        print("{:<22}: {}".format(key.upper(), FLAGS[key].value))
+
 
 class base_model():
     def __init__(self, sess, FLAGS):
-        self.x = None
-        self.y = None
-        self.loss = None
-        self.global_step = None
-        self.train_op = None
-        self.summary_op = None
+        self.x = None             # input placeholder
+        self.y = None             # output placeholder
+        self.loss = None          # loss operator
+        self.global_step = None   # global step counter
+        self.train_op = None      # train operator
 
-        self.latest_model = None
-        self.saver = None
-        self.sess = sess
-        self.logger = None
-        self.FLAGS = FLAGS
+        self.summary_op = None    # summary operator
+        self.latest_model = None  # string of the path of the latest model
+        self.sess = sess          # session object
+        self.FLAGS = FLAGS        # flag object
         self._buildnet()
+
+        # define saver and logger objects
+        self.saver = tf.train.Saver(max_to_keep=30, keep_checkpoint_every_n_hours=6)
+        self.logger = tf.summary.FileWriter( osp.join(self.FLAGS.logdir, self.FLAGS.exp), self.sess.graph)
+        self._check_graph()
+
+    '''
+    check if the all the mandatory operators are defined
+    '''
+    def _check_graph(self):
+        assert(self.x != None)
+        assert(self.y != None)
+        assert(self.loss != None)
+        assert(self.global_step != None)
+        assert(self.train_op != None)
 
     '''
     building the network in the graph
     called inside of the class constructor
     strongly virtual function, requires child class implementation
+    ALL graph definition must be inside this function
     '''
     def _buildnet(self):
         raise NotImplementedError()
@@ -73,48 +97,60 @@ class base_model():
         }
         return self.sess.run(self.loss, feed_dict = dict)
 
-
     '''
     run function serves as both training and testing
     controlled by FLAG.train boolean by default, but changeable by passing boolean into train argument
-    load_path : path to load the ckpt file, if True, then load the latest model recorded
+    train (bool) : for training or test
+    load (string or bool) : to load the ckpt file, if True, then load the latest model recorded
     '''
-    def run(self, iter_data, iter_val = None, train = None, load_path = None):
+    def run(self, iter_data, iter_val = None, train = None, load = False):
         if train == None:
             train = self.FLAGS.train
-        if load_path == True:
+        if load == True:
             self.saver.restore(self.sess, self.latest_model)
-        elif load_path != None:
-            self.saver.restore(self.sess, load_path)
+        elif load != False:
+            self.saver.restore(self.sess, load)
 
         data_X, data_Y = iter_data.get_next()
         if iter_val != None:
             val_X, val_Y = iter_val.get_next()
 
         if train:
-            print("Initiating Training mode: ")
-            init = tf.global_variables_initializer()
-            self.sess.run(init)
+            if (self.FLAGS.resume_iter != -1):
+                print("\nResume Training mode: ")
+                model_file = osp.join(self.FLAGS.ckptdir, self.FLAGS.exp, 'model_{}'.format(self.FLAGS.resume_iter))
+                self.saver.restore(self.sess, model_file)
+            else:
+                print("\nInitiating Training mode: ")
+                self.sess.run(tf.global_variables_initializer())
             for i in range(self.FLAGS.epoch_num):
                 step = tf.train.global_step(self.sess, self.global_step)
+                # get data
                 X, Y = self.sess.run([data_X, data_Y])
                 train_dict = {
                     self.x: X,
                     self.y: Y
                 }
-                summary, _, loss = self.sess.run([self.summary_op, self.train_op, self.loss], feed_dict = train_dict)
-                if i % self.FLAGS.save_interval == 0:
-                    self.latest_model = osp.join(self.FLAGS.ckptdir, self.FLAGS.exp, 'model_{}'.format(i))
+                # calculate loss
+                if(self.summary_op == None):
+                    _, loss = self.sess.run([self.train_op, self.loss], feed_dict = train_dict)
+                else:
+                    summary, _, loss = self.sess.run([self.summary_op, self.train_op, self.loss], feed_dict = train_dict)
+                # save model
+                if step % self.FLAGS.save_interval == 0:
+                    self.latest_model = osp.join(self.FLAGS.ckptdir, self.FLAGS.exp, 'model_{}'.format(step))
                     self.saver.save(self.sess, self.latest_model)
-                if i % self.FLAGS.log_interval == 0:
-                    self.logger.add_summary(summary, step)
-                    print("epoch " + str(i) + ":")
+                # logging
+                if step % self.FLAGS.log_interval == 0:
+                    print("epoch " + str(step) + ":")
                     print("Training loss is: {:.6f}".format(loss))
+                    if(self.summary_op != None):
+                        self.logger.add_summary(summary, step)
                     if iter_val != None:
                         loss = self._get_loss(val_X, val_Y)
                         print("Validation loss is: {:.6f}".format(loss))
 
         else:
+            print("\nInitiating Testing mode: ")
             loss = self._get_loss(data_X, data_Y)
-            print("Initiating Testing mode: ")
             print("The test loss is: {:.6f}".format(loss))
