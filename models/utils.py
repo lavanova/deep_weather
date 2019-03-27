@@ -47,6 +47,18 @@ def print_flag(FLAGS):
     for key in FLAGS.flag_values_dict():
         print("{:<22}: {}".format(key.upper(), FLAGS[key].value))
 
+'''
+Get the number of trainable parameters in the current graph
+'''
+def get_n_trainable_parameters():
+    for variable in tf.trainable_variables():
+        shape = variable.get_shape()
+        variable_parameters = 1
+        for dim in shape:
+            variable_parameters *= dim.value
+        total_parameters += variable_parameters
+    print("Model has a total of {} parameters".format(total_parameters))
+
 
 class base_model():
     def __init__(self, sess, FLAGS):
